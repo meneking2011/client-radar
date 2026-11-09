@@ -45,6 +45,7 @@ jobs:
           mkdir -p source
           unzip -q ClientRadar-Android-Companion-Source.zip -d source
           cp -R android-companion/. source/ClientRadar-Android-Companion/
+          sed -i "s/targetSdk 35/targetSdk 29/" source/ClientRadar-Android-Companion/app/build.gradle
 
       - name: Build APK
         run: |
