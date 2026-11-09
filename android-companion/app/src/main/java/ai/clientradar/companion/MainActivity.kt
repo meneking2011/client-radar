@@ -38,7 +38,38 @@ class MainActivity : Activity() {
         super.onCreate(savedInstanceState)
         window.statusBarColor = navy
         window.navigationBarColor = navy
-        render()
+        try {
+            render()
+        } catch (error: Throwable) {
+            showStartupError(error)
+        }
+    }
+
+    private fun showStartupError(error: Throwable) {
+        android.util.Log.e("ClientRadar", "Main screen failed to start", error)
+        val message = "ClientRadar could not finish opening.\\n\\n" +
+            (error.javaClass.simpleName + ": " + (error.message ?: "Unknown startup error")) +
+            "\\n\\nPlease share this message with support."
+        val screen = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER
+            setPadding(32, 32, 32, 32)
+            setBackgroundColor(navy)
+        }
+        val heading = TextView(this).apply {
+            text = "ClientRadar startup error"
+            textSize = 22f
+            setTextColor(white)
+        }
+        val details = TextView(this).apply {
+            text = message
+            textSize = 15f
+            setTextColor(muted)
+            setPadding(0, 20, 0, 0)
+        }
+        screen.addView(heading)
+        screen.addView(details)
+        setContentView(screen)
     }
 
     private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
@@ -210,7 +241,13 @@ class MainActivity : Activity() {
 
     override fun onResume() {
         super.onResume()
-        if (::status.isInitialized) refreshStatus()
+        if (::status.isInitialized) {
+            try {
+                refreshStatus()
+            } catch (error: Throwable) {
+                showStartupError(error)
+            }
+        }
     }
 
     private fun connectDevice() {
