@@ -68,13 +68,13 @@ jobs:
           script: |
             mkdir -p emulator-test
             APK="source/ClientRadar-Android-Companion/app/build/outputs/apk/debug/app-debug.apk"
-            adb logcat -c
-            adb install -r "$APK"
-            adb shell monkey -p ai.clientradar.companion -c android.intent.category.LAUNCHER 1
+            adb -s emulator-5554 wait-for-device
+            adb -s emulator-5554 install -r "$APK"
+            adb -s emulator-5554 shell monkey -p ai.clientradar.companion -c android.intent.category.LAUNCHER 1
             sleep 10
-            adb shell pidof ai.clientradar.companion > emulator-test/app-pid.txt || true
-            adb shell dumpsys activity activities > emulator-test/activities.txt
-            adb logcat -d -v threadtime > emulator-test/logcat.txt
+            adb -s emulator-5554 shell pidof ai.clientradar.companion > emulator-test/app-pid.txt || true
+            adb -s emulator-5554 shell dumpsys activity activities > emulator-test/activities.txt || true
+            adb -s emulator-5554 logcat -d -v threadtime > emulator-test/logcat.txt || true
             if [ ! -s emulator-test/app-pid.txt ]; then
               echo "The app process was not running 10 seconds after launch." > emulator-test/result.txt
             else
