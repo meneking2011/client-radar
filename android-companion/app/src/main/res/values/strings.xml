@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">ClientRadar Companion</string>
+    <string name="notification_listener_label">ClientRadar notification capture</string>
+</resources>
