@@ -1,4 +1,3 @@
-
 name: Build ClientRadar Android APK
 
 on:
@@ -6,6 +5,7 @@ on:
   push:
     paths:
       - 'ClientRadar-Android-Companion-Source.zip'
+      - 'android-companion/**'
       - '.github/workflows/android-build.yml'
 
 permissions:
@@ -42,20 +42,9 @@ jobs:
 
       - name: Extract Android project
         run: |
+          mkdir -p source
           unzip -q ClientRadar-Android-Companion-Source.zip -d source
-
-      - name: Inspect Android source before build
-        run: |
-          echo '===== PROJECT FILES ====='
-          find source/ClientRadar-Android-Companion -maxdepth 8 -type f | sort
-          find source/ClientRadar-Android-Companion/app/src/main -type f | while IFS= read -r file; do
-            case "$file" in
-              *.kt|*.xml) echo "===== $file ====="; cat "$file" ;;
-            esac
-          done
-          for file in source/ClientRadar-Android-Companion/app/build.gradle source/ClientRadar-Android-Companion/build.gradle source/ClientRadar-Android-Companion/settings.gradle source/ClientRadar-Android-Companion/README.md; do
-            if [ -f "$file" ]; then echo "===== $file ====="; cat "$file"; fi
-          done
+          cp -R android-companion/. source/ClientRadar-Android-Companion/
 
       - name: Build APK
         run: |
