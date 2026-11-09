@@ -48,16 +48,8 @@ jobs:
         run: |
           echo '===== PROJECT FILES ====='
           find source/ClientRadar-Android-Companion -maxdepth 8 -type f | sort
-          for file in \\
-            source/ClientRadar-Android-Companion/app/src/main/AndroidManifest.xml \\
-            source/ClientRadar-Android-Companion/app/src/main/java/ai/clientradar/companion/MainActivity.kt \\
-            source/ClientRadar-Android-Companion/app/src/main/java/ai/clientradar/companion/ApiClient.kt \\
-            source/ClientRadar-Android-Companion/app/src/main/java/ai/clientradar/companion/SecurePrefs.kt \\
-            source/ClientRadar-Android-Companion/app/src/main/java/ai/clientradar/companion/FacebookNotificationListener.kt \\
-            source/ClientRadar-Android-Companion/app/build.gradle \\
-            source/ClientRadar-Android-Companion/build.gradle \\
-            source/ClientRadar-Android-Companion/settings.gradle \\
-            source/ClientRadar-Android-Companion/README.md; do
+          find source/ClientRadar-Android-Companion/app/src/main -type f \\( -name '*.kt' -o -name '*.xml' \\) -print -exec sh -c 'echo "===== $1 ====="; cat "$1"' _ {} \\;
+          for file in source/ClientRadar-Android-Companion/app/build.gradle source/ClientRadar-Android-Companion/build.gradle source/ClientRadar-Android-Companion/settings.gradle source/ClientRadar-Android-Companion/README.md; do
             if [ -f "$file" ]; then echo "===== $file ====="; cat "$file"; fi
           done
 
