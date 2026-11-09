@@ -53,6 +53,42 @@ jobs:
             -p source/ClientRadar-Android-Companion \
             assembleDebug --no-daemon
 
+      - name: Launch Android 10 emulator and capture startup logs
+        id: emulator_test
+        uses: reactivecircus/android-emulator-runner@v2
+        continue-on-error: true
+        with:
+          api-level: 29
+          target: google_apis
+          arch: x86_64
+          profile: pixel_3a
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
+          disable-animations: true
+          emulator-boot-timeout: 300
+          script: |
+            mkdir -p emulator-test
+            APK="source/ClientRadar-Android-Companion/app/build/outputs/apk/debug/app-debug.apk"
+            adb logcat -c
+            adb install -r "$APK"
+            adb shell monkey -p ai.clientradar.companion -c android.intent.category.LAUNCHER 1
+            sleep 10
+            adb shell pidof ai.clientradar.companion > emulator-test/app-pid.txt || true
+            adb shell dumpsys activity activities > emulator-test/activities.txt
+            adb logcat -d -v threadtime > emulator-test/logcat.txt
+            if [ ! -s emulator-test/app-pid.txt ]; then
+              echo "The app process was not running 10 seconds after launch." > emulator-test/result.txt
+            else
+              echo "The app process remained alive 10 seconds after launch." > emulator-test/result.txt
+            fi
+
+      - name: Upload emulator diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ClientRadar-Emulator-Diagnostics
+          path: emulator-test/
+          if-no-files-found: warn
+
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
