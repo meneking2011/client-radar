@@ -57,6 +57,9 @@ jobs:
         id: emulator_test
         uses: reactivecircus/android-emulator-runner@v2
         continue-on-error: true
+        env:
+          APK_PATH: ${{ github.workspace }}/source/ClientRadar-Android-Companion/app/build/outputs/apk/debug/app-debug.apk
+          DIAG_DIR: ${{ github.workspace }}/emulator-test
         with:
           api-level: 29
           target: google_apis
@@ -66,20 +69,7 @@ jobs:
           disable-animations: true
           emulator-boot-timeout: 300
           script: |
-            mkdir -p "$GITHUB_WORKSPACE/emulator-test"
-            APK="$GITHUB_WORKSPACE/source/ClientRadar-Android-Companion/app/build/outputs/apk/debug/app-debug.apk"
-            adb -s emulator-5554 wait-for-device
-            adb -s emulator-5554 install -r "$APK"
-            adb -s emulator-5554 shell monkey -p ai.clientradar.companion -c android.intent.category.LAUNCHER 1
-            sleep 10
-            adb -s emulator-5554 shell pidof ai.clientradar.companion > "$GITHUB_WORKSPACE/emulator-test/app-pid.txt" || true
-            adb -s emulator-5554 shell dumpsys activity activities > "$GITHUB_WORKSPACE/emulator-test/activities.txt" || true
-            adb -s emulator-5554 logcat -d -v threadtime > "$GITHUB_WORKSPACE/emulator-test/logcat.txt" || true
-            if [ ! -s emulator-test/app-pid.txt ]; then
-              echo "The app process was not running 10 seconds after launch." > "$GITHUB_WORKSPACE/emulator-test/result.txt"
-            else
-              echo "The app process remained alive 10 seconds after launch." > emulator-test/result.txt
-            fi
+            sh -c 'mkdir -p "$DIAG_DIR"; test -s "$APK_PATH"; adb -s emulator-5554 wait-for-device; adb -s emulator-5554 install -r "$APK_PATH"; adb -s emulator-5554 shell monkey -p ai.clientradar.companion -c android.intent.category.LAUNCHER 1; sleep 10; adb -s emulator-5554 shell pidof ai.clientradar.companion > "$DIAG_DIR/app-pid.txt" 2>&1 || true; adb -s emulator-5554 shell dumpsys activity activities > "$DIAG_DIR/activities.txt" 2>&1 || true; adb -s emulator-5554 logcat -d -v threadtime > "$DIAG_DIR/logcat.txt" 2>&1 || true; if [ -s "$DIAG_DIR/app-pid.txt" ]; then echo "The app process remained alive 10 seconds after launch." > "$DIAG_DIR/result.txt"; else echo "The app process was not running 10 seconds after launch." > "$DIAG_DIR/result.txt"; fi'
 
       - name: Upload emulator diagnostics
         if: always()
