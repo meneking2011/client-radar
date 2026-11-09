@@ -44,6 +44,23 @@ jobs:
         run: |
           unzip -q ClientRadar-Android-Companion-Source.zip -d source
 
+      - name: Inspect Android source before build
+        run: |
+          echo '===== PROJECT FILES ====='
+          find source/ClientRadar-Android-Companion -maxdepth 8 -type f | sort
+          for file in \\
+            source/ClientRadar-Android-Companion/app/src/main/AndroidManifest.xml \\
+            source/ClientRadar-Android-Companion/app/src/main/java/ai/clientradar/companion/MainActivity.kt \\
+            source/ClientRadar-Android-Companion/app/src/main/java/ai/clientradar/companion/ApiClient.kt \\
+            source/ClientRadar-Android-Companion/app/src/main/java/ai/clientradar/companion/SecurePrefs.kt \\
+            source/ClientRadar-Android-Companion/app/src/main/java/ai/clientradar/companion/FacebookNotificationListener.kt \\
+            source/ClientRadar-Android-Companion/app/build.gradle \\
+            source/ClientRadar-Android-Companion/build.gradle \\
+            source/ClientRadar-Android-Companion/settings.gradle \\
+            source/ClientRadar-Android-Companion/README.md; do
+            if [ -f "$file" ]; then echo "===== $file ====="; cat "$file"; fi
+          done
+
       - name: Build APK
         run: |
           /tmp/gradle-8.9/bin/gradle \
