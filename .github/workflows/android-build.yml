@@ -48,9 +48,10 @@ jobs:
         run: |
           echo '===== PROJECT FILES ====='
           find source/ClientRadar-Android-Companion -maxdepth 8 -type f | sort
-          find source/ClientRadar-Android-Companion/app/src/main -type f | grep -E '\\.(kt|xml)$' | while IFS= read -r file; do
-            echo "===== $file ====="
-            cat "$file"
+          find source/ClientRadar-Android-Companion/app/src/main -type f | while IFS= read -r file; do
+            case "$file" in
+              *.kt|*.xml) echo "===== $file ====="; cat "$file" ;;
+            esac
           done
           for file in source/ClientRadar-Android-Companion/app/build.gradle source/ClientRadar-Android-Companion/build.gradle source/ClientRadar-Android-Companion/settings.gradle source/ClientRadar-Android-Companion/README.md; do
             if [ -f "$file" ]; then echo "===== $file ====="; cat "$file"; fi
