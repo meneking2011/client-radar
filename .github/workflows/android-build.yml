@@ -66,17 +66,17 @@ jobs:
           disable-animations: true
           emulator-boot-timeout: 300
           script: |
-            mkdir -p emulator-test
-            APK="source/ClientRadar-Android-Companion/app/build/outputs/apk/debug/app-debug.apk"
+            mkdir -p "$GITHUB_WORKSPACE/emulator-test"
+            APK="$GITHUB_WORKSPACE/source/ClientRadar-Android-Companion/app/build/outputs/apk/debug/app-debug.apk"
             adb -s emulator-5554 wait-for-device
             adb -s emulator-5554 install -r "$APK"
             adb -s emulator-5554 shell monkey -p ai.clientradar.companion -c android.intent.category.LAUNCHER 1
             sleep 10
-            adb -s emulator-5554 shell pidof ai.clientradar.companion > emulator-test/app-pid.txt || true
-            adb -s emulator-5554 shell dumpsys activity activities > emulator-test/activities.txt || true
-            adb -s emulator-5554 logcat -d -v threadtime > emulator-test/logcat.txt || true
+            adb -s emulator-5554 shell pidof ai.clientradar.companion > "$GITHUB_WORKSPACE/emulator-test/app-pid.txt" || true
+            adb -s emulator-5554 shell dumpsys activity activities > "$GITHUB_WORKSPACE/emulator-test/activities.txt" || true
+            adb -s emulator-5554 logcat -d -v threadtime > "$GITHUB_WORKSPACE/emulator-test/logcat.txt" || true
             if [ ! -s emulator-test/app-pid.txt ]; then
-              echo "The app process was not running 10 seconds after launch." > emulator-test/result.txt
+              echo "The app process was not running 10 seconds after launch." > "$GITHUB_WORKSPACE/emulator-test/result.txt"
             else
               echo "The app process remained alive 10 seconds after launch." > emulator-test/result.txt
             fi
@@ -86,7 +86,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ClientRadar-Emulator-Diagnostics
-          path: emulator-test/
+          path: ${{ github.workspace }}/emulator-test/
           if-no-files-found: warn
 
       - name: Upload APK
