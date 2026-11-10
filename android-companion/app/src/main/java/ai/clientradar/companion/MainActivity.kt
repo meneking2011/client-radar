@@ -27,6 +27,7 @@ class MainActivity : Activity() {
     private lateinit var codeInput: EditText
     private lateinit var connectButton: Button
     private var connected = false
+    private var restoredPairingCode: String? = null
 
     private val navy = Color.rgb(9, 17, 31)
     private val panel = Color.rgb(18, 31, 49)
@@ -36,6 +37,7 @@ class MainActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        restoredPairingCode = savedInstanceState?.getString("clientradar_pairing_code")
         window.statusBarColor = navy
         window.navigationBarColor = navy
         try {
@@ -43,6 +45,13 @@ class MainActivity : Activity() {
         } catch (error: Throwable) {
             showStartupError(error)
         }
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        if (::codeInput.isInitialized) {
+            outState.putString("clientradar_pairing_code", codeInput.text.toString())
+        }
+        super.onSaveInstanceState(outState)
     }
 
     private fun showStartupError(error: Throwable) {
@@ -157,12 +166,25 @@ class MainActivity : Activity() {
         ), 14)
         codeInput = EditText(this).apply {
             hint = "Enter pairing code"
-            maxLines = 1
+            setSingleLine(false)
+            minLines = 2
+            maxLines = 5
+            gravity = Gravity.TOP or Gravity.START
+            inputType = android.text.InputType.TYPE_CLASS_TEXT or
+                android.text.InputType.TYPE_TEXT_FLAG_MULTI_LINE or
+                android.text.InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
+            imeOptions = android.view.inputmethod.EditorInfo.IME_ACTION_DONE
+            setHorizontallyScrolling(false)
+            isVerticalScrollBarEnabled = true
             textSize = 16f
             setTextColor(white)
             setHintTextColor(muted)
             setPadding(dp(14), dp(13), dp(14), dp(13))
             background = cardBackground(Color.rgb(29, 44, 63))
+        }
+        restoredPairingCode?.let { savedCode ->
+            codeInput.setText(savedCode)
+            codeInput.setSelection(codeInput.text.length)
         }
         add(connectionCard, codeInput, 12)
         connectButton = makeButton("Connect to ClientRadar", true) { connectDevice() }
@@ -251,7 +273,8 @@ class MainActivity : Activity() {
     }
 
     private fun connectDevice() {
-        val code = codeInput.text.toString().trim()
+        // Ignore whitespace and line breaks added by wrapping or pasting.
+        val code = codeInput.text.toString().replace(Regex("\\s+"), "")
         if (!code.matches(Regex("(?i)^[a-z0-9_-]{8,128}$"))) {
             Toast.makeText(this, "Enter the pairing code shown in ClientRadar.", Toast.LENGTH_LONG).show()
             return
@@ -275,7 +298,13 @@ class MainActivity : Activity() {
             } catch (error: Exception) {
                 runOnUiThread {
                     connectButton.isEnabled = true
-                    status.text = "Connection failed: ${error.message ?: "Please try again."}"
+                    val details = error.message.orEmpty()
+                    status.text = if (details.contains("DOCTYPE", ignoreCase = true) ||
+                        details.contains("<html", ignoreCase = true)) {
+                        "Connection failed: ClientRadar returned a web page instead of the pairing API response. This points to a server/API response issue, not necessarily an invalid code. Check your internet connection and try again."
+                    } else {
+                        "Connection failed: ${details.ifBlank { "Please try again." }.take(300)}"
+                    }
                 }
             }
         }
