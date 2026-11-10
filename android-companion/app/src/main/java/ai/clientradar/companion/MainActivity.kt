@@ -26,6 +26,9 @@ class MainActivity : Activity() {
     private lateinit var permissionStatus: TextView
     private lateinit var codeInput: EditText
     private lateinit var connectButton: Button
+    private lateinit var rootLayout: LinearLayout
+    private lateinit var disconnectButton: Button
+    private var disconnectButtonAdded = false
     private var connected = false
     private var restoredPairingCode: String? = null
 
@@ -125,11 +128,11 @@ class MainActivity : Activity() {
             setFillViewport(true)
             setBackgroundColor(navy)
         }
-        val root = LinearLayout(this).apply {
+        rootLayout = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(22), dp(28), dp(22), dp(28))
         }
-        scroll.addView(root)
+        scroll.addView(rootLayout)
         setContentView(scroll)
 
         val brand = LinearLayout(this).apply {
@@ -147,9 +150,9 @@ class MainActivity : Activity() {
         add(brandText, text("COMPANION", 22f, white, true), 0)
         brand.addView(mark)
         brand.addView(brandText)
-        add(root, brand, 22)
+        add(rootLayout, brand, 22)
 
-        add(root, text(
+        add(rootLayout, text(
             "Turn relevant Facebook notifications into opportunities in your ClientRadar workspace.",
             15f, muted
         ), 20)
@@ -189,7 +192,7 @@ class MainActivity : Activity() {
         add(connectionCard, codeInput, 12)
         connectButton = makeButton("Connect to ClientRadar", true) { connectDevice() }
         add(connectionCard, connectButton, 0)
-        add(root, connectionCard, 14)
+        add(rootLayout, connectionCard, 14)
 
         val accessCard = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -206,7 +209,7 @@ class MainActivity : Activity() {
         add(accessCard, makeButton("Open notification settings", false) {
             startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
         }, 0)
-        add(root, accessCard, 14)
+        add(rootLayout, accessCard, 14)
 
         val statusCard = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -216,18 +219,18 @@ class MainActivity : Activity() {
         add(statusCard, text("DEVICE STATUS", 12f, cyan, true), 8)
         status = text("Checking connection…", 14f, white)
         add(statusCard, status, 0)
-        add(root, statusCard, 14)
+        add(rootLayout, statusCard, 14)
 
-        add(root, makeButton("Disconnect this phone", false) {
+        disconnectButton = makeButton("Disconnect this phone", false) {
             try {
                 SecurePrefs.clearToken(this)
                 connected = false
-                status.text = "Disconnected. Generate a new pairing code in ClientRadar to reconnect."
+                refreshStatus()
                 Toast.makeText(this, "Phone disconnected.", Toast.LENGTH_SHORT).show()
             } catch (error: Exception) {
                 status.text = "Could not clear the saved connection. Please try again."
             }
-        }, 8)
+        }
 
         refreshStatus()
     }
@@ -251,6 +254,15 @@ class MainActivity : Activity() {
         } else {
             "○ Notification access is not enabled"
         }
+
+        if (connected && !disconnectButtonAdded) {
+            add(rootLayout, disconnectButton, 8)
+            disconnectButtonAdded = true
+        } else if (!connected && disconnectButtonAdded) {
+            rootLayout.removeView(disconnectButton)
+            disconnectButtonAdded = false
+        }
+
         status.text = when {
             connected && hasNotificationAccess() ->
                 "Connected and ready. Matching Facebook notifications can be checked."
