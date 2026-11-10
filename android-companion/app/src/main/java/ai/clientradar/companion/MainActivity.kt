@@ -157,7 +157,7 @@ class MainActivity : Activity() {
         ), 14)
         codeInput = EditText(this).apply {
             hint = "Enter pairing code"
-            singleLine = true
+            maxLines = 1
             textSize = 16f
             setTextColor(white)
             setHintTextColor(muted)
