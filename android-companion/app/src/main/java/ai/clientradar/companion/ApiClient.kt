@@ -87,8 +87,8 @@ object ApiClient {
         }
     }
 
-    fun sendNotification(token: String, packageName: String, title: String, text: String) {
-        post(
+    fun sendNotification(token: String, packageName: String, title: String, text: String): JSONObject {
+        return post(
             "/api/companion/ingest",
             JSONObject()
                 .put("deviceToken", token)
