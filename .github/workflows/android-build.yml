@@ -53,6 +53,13 @@ jobs:
             -p source/ClientRadar-Android-Companion \
             assembleDebug --no-daemon
 
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: ClientRadar-Android-APK
+          path: source/ClientRadar-Android-Companion/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+
       - name: Launch Android 10 emulator and capture startup logs
         id: emulator_test
         uses: reactivecircus/android-emulator-runner@v2
@@ -78,10 +85,3 @@ jobs:
           name: ClientRadar-Emulator-Diagnostics
           path: ${{ github.workspace }}/emulator-test/
           if-no-files-found: warn
-
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: ClientRadar-Android-APK
-          path: source/ClientRadar-Android-Companion/app/build/outputs/apk/debug/*.apk
-          if-no-files-found: error
