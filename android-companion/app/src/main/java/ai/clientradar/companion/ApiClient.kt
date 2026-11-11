@@ -17,7 +17,7 @@ object ApiClient {
             doOutput = true
             setRequestProperty("Accept", "application/json")
             setRequestProperty("Content-Type", "application/json; charset=utf-8")
-            setRequestProperty("User-Agent", "ClientRadar-Companion/1.0")
+            setRequestProperty("User-Agent", "ClientRadar-Companion/1.1")
         }
 
         return try {
@@ -25,19 +25,20 @@ object ApiClient {
                 it.write(payload.toString().toByteArray(Charsets.UTF_8))
             }
 
-            val status = connection.responseCode
-            val stream = if (status in 200..299) connection.inputStream else connection.errorStream
+            val responseCode = connection.responseCode
+            val stream = if (responseCode in 200..299) connection.inputStream else connection.errorStream
             val response = stream?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }.orEmpty()
             val contentType = connection.contentType.orEmpty()
 
-            if (status !in 200..299) {
+            if (responseCode !in 200..299) {
                 val message = try {
                     val json = JSONObject(response)
                     json.optString("error").ifBlank {
-                        json.optString("message").ifBlank { "HTTP $status" }
+                        json.optString("message").ifBlank { "HTTP $responseCode" }
                     }
                 } catch (_: Exception) {
-                    "HTTP $status from ClientRadar API. " + response.take(180).replace("\\s+".toRegex(), " ")
+                    "HTTP $responseCode from ClientRadar API. " +
+                        response.take(180).replace("\\s+".toRegex(), " ")
                 }
                 throw IllegalStateException(message)
             }
@@ -47,7 +48,7 @@ object ApiClient {
             } catch (_: Exception) {
                 val preview = response.take(180).replace("\\s+".toRegex(), " ")
                 throw IllegalStateException(
-                    "ClientRadar API returned non-JSON data (HTTP $status, $contentType). $preview"
+                    "ClientRadar API returned non-JSON data (HTTP $responseCode, $contentType). $preview"
                 )
             }
         } finally {
@@ -58,6 +59,21 @@ object ApiClient {
     fun exchangeCode(code: String): String {
         val result = post("/api/companion/exchange", JSONObject().put("code", code))
         return result.getString("deviceToken")
+    }
+
+    fun isDeviceConnected(token: String): Boolean {
+        val result = post(
+            "/api/companion/device-status",
+            JSONObject().put("deviceToken", token)
+        )
+        return result.optBoolean("connected", false)
+    }
+
+    fun disconnectDevice(token: String) {
+        post(
+            "/api/companion/device-disconnect",
+            JSONObject().put("deviceToken", token)
+        )
     }
 
     fun fetchKeywords(token: String): Set<String> {
