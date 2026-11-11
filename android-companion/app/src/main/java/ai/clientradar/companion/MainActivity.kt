@@ -33,6 +33,7 @@ class MainActivity : Activity() {
     private lateinit var permissionStatus: TextView
     private lateinit var captureStatus: TextView
     private lateinit var captureDetails: TextView
+    private lateinit var alertStatus: TextView
     private lateinit var codeInput: EditText
     private lateinit var connectButton: Button
     private lateinit var controlsLayout: LinearLayout
@@ -223,8 +224,13 @@ class MainActivity : Activity() {
         captureStatus = text("", 13f, cyan, true)
         add(accessCard, captureStatus, 6)
         captureDetails = text("", 12f, muted)
-        add(accessCard, captureDetails, 10)
-        add(accessCard, makeButton("Open notification settings", false) {
+        add(accessCard, captureDetails, 8)
+        alertStatus = text("", 13f, white, true)
+        add(accessCard, alertStatus, 8)
+        add(accessCard, makeButton("Open ClientRadar alert settings", false) {
+            startActivity(Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, packageName))
+        }, 8)
+        add(accessCard, makeButton("Open Facebook notification access settings", false) {
             startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
         }, 0)
         add(rootLayout, accessCard, 14)
@@ -263,6 +269,13 @@ class MainActivity : Activity() {
             "● Notification access is enabled"
         } else {
             "○ Notification access is not enabled"
+        }
+
+        val appAlertsEnabled = (getSystemService(Context.NOTIFICATION_SERVICE) as android.app.NotificationManager).areNotificationsEnabled()
+        alertStatus.text = if (appAlertsEnabled) {
+            "● ClientRadar lead alerts are enabled"
+        } else {
+            "○ ClientRadar app alerts are blocked. Enable them in Android settings."
         }
 
         val listenerActive = CaptureState.listenerConnected(this)
