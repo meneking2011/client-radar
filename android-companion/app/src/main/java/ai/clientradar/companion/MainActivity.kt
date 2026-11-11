@@ -31,6 +31,8 @@ class MainActivity : Activity() {
 
     private lateinit var status: TextView
     private lateinit var permissionStatus: TextView
+    private lateinit var captureStatus: TextView
+    private lateinit var captureDetails: TextView
     private lateinit var codeInput: EditText
     private lateinit var connectButton: Button
     private lateinit var controlsLayout: LinearLayout
@@ -217,7 +219,11 @@ class MainActivity : Activity() {
             14f, muted
         ), 10)
         permissionStatus = text("", 13f, white, true)
-        add(accessCard, permissionStatus, 10)
+        add(accessCard, permissionStatus, 8)
+        captureStatus = text("", 13f, cyan, true)
+        add(accessCard, captureStatus, 6)
+        captureDetails = text("", 12f, muted)
+        add(accessCard, captureDetails, 10)
         add(accessCard, makeButton("Open notification settings", false) {
             startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
         }, 0)
@@ -257,6 +263,26 @@ class MainActivity : Activity() {
             "● Notification access is enabled"
         } else {
             "○ Notification access is not enabled"
+        }
+
+        val listenerActive = CaptureState.listenerConnected(this)
+        captureStatus.text = if (listenerActive) {
+            "● Facebook listener is active"
+        } else if (hasNotificationAccess()) {
+            "○ Notification permission is granted; waiting for Android listener"
+        } else {
+            "○ Facebook listener is inactive"
+        }
+        val receivedAt = CaptureState.lastNotificationAt(this)
+        val syncAt = CaptureState.lastSyncAt(this)
+        val matchedAt = CaptureState.lastMatchedAt(this)
+        captureDetails.text = buildString {
+            append("Facebook alerts received: ").append(CaptureState.receivedCount(this@MainActivity))
+            append("  •  Matches: ").append(CaptureState.matchedCount(this@MainActivity))
+            append("\\nLast received: ").append(if (receivedAt > 0) android.text.format.DateFormat.format("h:mm a", receivedAt) else "Never")
+            append("\\nLast sync: ").append(if (syncAt > 0) android.text.format.DateFormat.format("h:mm a", syncAt) else "Not yet")
+            append(" — ").append(CaptureState.lastSyncStatus(this@MainActivity))
+            if (matchedAt > 0) append("\\nLast matched keyword: ").append(CaptureState.lastMatchedKeyword(this@MainActivity))
         }
 
         status.text = when {
