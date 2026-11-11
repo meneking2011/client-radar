@@ -1,17 +1,20 @@
 package ai.clientradar.companion
 
 import android.app.Activity
+import android.app.AlertDialog
+import android.content.Context
 import android.content.Intent
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.provider.Settings
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
 import android.view.inputmethod.InputMethodManager
-import android.content.Context
 import android.widget.Button
 import android.widget.EditText
 import android.widget.LinearLayout
@@ -19,16 +22,21 @@ import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
 import java.util.concurrent.Executors
+import java.util.concurrent.atomic.AtomicBoolean
 
 class MainActivity : Activity() {
     private val executor = Executors.newSingleThreadExecutor()
+    private val handler = Handler(Looper.getMainLooper())
+    private val remoteCheckRunning = AtomicBoolean(false)
+
     private lateinit var status: TextView
     private lateinit var permissionStatus: TextView
     private lateinit var codeInput: EditText
     private lateinit var connectButton: Button
-    private lateinit var rootLayout: LinearLayout
+    private lateinit var controlsLayout: LinearLayout
     private lateinit var disconnectButton: Button
-    private var disconnectButtonAdded = false
+    private lateinit var rootLayout: LinearLayout
+
     private var connected = false
     private var restoredPairingCode: String? = null
 
@@ -37,6 +45,13 @@ class MainActivity : Activity() {
     private val cyan = Color.rgb(65, 210, 218)
     private val white = Color.rgb(239, 246, 252)
     private val muted = Color.rgb(160, 178, 196)
+
+    private val statusPoll = object : Runnable {
+        override fun run() {
+            checkServerConnection()
+            handler.postDelayed(this, 4000)
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -59,32 +74,23 @@ class MainActivity : Activity() {
 
     private fun showStartupError(error: Throwable) {
         android.util.Log.e("ClientRadar", "Main screen failed to start", error)
-        val message = "ClientRadar could not finish opening.\\n\\n" +
-            (error.javaClass.simpleName + ": " + (error.message ?: "Unknown startup error")) +
-            "\\n\\nPlease share this message with support."
         val screen = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
             setPadding(32, 32, 32, 32)
             setBackgroundColor(navy)
         }
-        val heading = TextView(this).apply {
-            text = "ClientRadar startup error"
-            textSize = 22f
+        screen.addView(TextView(this).apply {
+            text = "ClientRadar could not finish opening.\\n\\n" +
+                (error.javaClass.simpleName + ": " + (error.message ?: "Unknown startup error"))
+            textSize = 16f
             setTextColor(white)
-        }
-        val details = TextView(this).apply {
-            text = message
-            textSize = 15f
-            setTextColor(muted)
-            setPadding(0, 20, 0, 0)
-        }
-        screen.addView(heading)
-        screen.addView(details)
+        })
         setContentView(screen)
     }
 
-    private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
+    private fun dp(value: Int): Int =
+        (value * resources.displayMetrics.density).toInt()
 
     private fun cardBackground(color: Int = panel): GradientDrawable =
         GradientDrawable().apply {
@@ -92,18 +98,14 @@ class MainActivity : Activity() {
             cornerRadius = dp(18).toFloat()
         }
 
-    private fun text(
-        value: String,
-        size: Float,
-        color: Int,
-        bold: Boolean = false
-    ) = TextView(this).apply {
-        text = value
-        textSize = size
-        setTextColor(color)
-        if (bold) setTypeface(typeface, Typeface.BOLD)
-        setLineSpacing(dp(3).toFloat(), 1f)
-    }
+    private fun text(value: String, size: Float, color: Int, bold: Boolean = false) =
+        TextView(this).apply {
+            text = value
+            textSize = size
+            setTextColor(color)
+            if (bold) setTypeface(typeface, Typeface.BOLD)
+            setLineSpacing(dp(3).toFloat(), 1f)
+        }
 
     private fun add(parent: LinearLayout, view: View, bottom: Int = 12) {
         parent.addView(view, LinearLayout.LayoutParams(
@@ -164,9 +166,13 @@ class MainActivity : Activity() {
         }
         add(connectionCard, text("WORKSPACE CONNECTION", 12f, cyan, true), 10)
         add(connectionCard, text(
-            "Generate a pairing code in your signed-in ClientRadar dashboard, then enter it here. Codes expire after five minutes.",
+            "Connect this phone to your ClientRadar workspace. The phone and website will keep their connection status synchronised.",
             14f, muted
         ), 14)
+
+        controlsLayout = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+        }
         codeInput = EditText(this).apply {
             hint = "Enter pairing code"
             setSingleLine(false)
@@ -189,9 +195,15 @@ class MainActivity : Activity() {
             codeInput.setText(savedCode)
             codeInput.setSelection(codeInput.text.length)
         }
-        add(connectionCard, codeInput, 12)
+        add(controlsLayout, codeInput, 12)
         connectButton = makeButton("Connect to ClientRadar", true) { connectDevice() }
-        add(connectionCard, connectButton, 0)
+        add(controlsLayout, connectButton, 0)
+
+        disconnectButton = makeButton("Disconnect this phone", false) {
+            confirmDisconnect()
+        }
+        add(controlsLayout, disconnectButton, 0)
+        add(connectionCard, controlsLayout, 0)
         add(rootLayout, connectionCard, 14)
 
         val accessCard = LinearLayout(this).apply {
@@ -221,18 +233,7 @@ class MainActivity : Activity() {
         add(statusCard, status, 0)
         add(rootLayout, statusCard, 14)
 
-        disconnectButton = makeButton("Disconnect this phone", false) {
-            try {
-                SecurePrefs.clearToken(this)
-                connected = false
-                refreshStatus()
-                Toast.makeText(this, "Phone disconnected.", Toast.LENGTH_SHORT).show()
-            } catch (error: Exception) {
-                status.text = "Could not clear the saved connection. Please try again."
-            }
-        }
-
-        refreshStatus()
+        refreshLocalUi()
     }
 
     private fun hasNotificationAccess(): Boolean {
@@ -243,49 +244,117 @@ class MainActivity : Activity() {
         return enabled.split(":").any { it.contains(packageName) }
     }
 
-    private fun refreshStatus() {
-        connected = try {
-            SecurePrefs.token(this).isNotBlank()
-        } catch (_: Exception) {
-            false
-        }
+    private fun refreshLocalUi() {
+        if (!::status.isInitialized) return
+        val token = try { SecurePrefs.token(this) } catch (_: Exception) { "" }
+        connected = token.isNotBlank()
+
+        codeInput.visibility = if (connected) View.GONE else View.VISIBLE
+        connectButton.visibility = if (connected) View.GONE else View.VISIBLE
+        disconnectButton.visibility = if (connected) View.VISIBLE else View.GONE
+
         permissionStatus.text = if (hasNotificationAccess()) {
             "● Notification access is enabled"
         } else {
             "○ Notification access is not enabled"
         }
 
-        if (connected && !disconnectButtonAdded) {
-            add(rootLayout, disconnectButton, 8)
-            disconnectButtonAdded = true
-        } else if (!connected && disconnectButtonAdded) {
-            rootLayout.removeView(disconnectButton)
-            disconnectButtonAdded = false
-        }
-
         status.text = when {
             connected && hasNotificationAccess() ->
                 "Connected and ready. Matching Facebook notifications can be checked."
             connected ->
-                "Phone paired. Enable notification access above to start capture."
+                "Connected. Enable notification access above to start capture."
             else ->
-                "Not connected. Pair this phone with your ClientRadar workspace first."
+                "Disconnected. Enter a pairing code from your ClientRadar dashboard."
         }
     }
 
     override fun onResume() {
         super.onResume()
         if (::status.isInitialized) {
+            refreshLocalUi()
+            handler.removeCallbacks(statusPoll)
+            handler.post(statusPoll)
+        }
+    }
+
+    override fun onPause() {
+        handler.removeCallbacks(statusPoll)
+        super.onPause()
+    }
+
+    private fun checkServerConnection() {
+        if (isFinishing || !remoteCheckRunning.compareAndSet(false, true)) return
+        val token = try { SecurePrefs.token(this) } catch (_: Exception) { "" }
+        if (token.isBlank()) {
+            remoteCheckRunning.set(false)
+            runOnUiThread { refreshLocalUi() }
+            return
+        }
+        executor.execute {
             try {
-                refreshStatus()
-            } catch (error: Throwable) {
-                showStartupError(error)
+                val serverConnected = ApiClient.isDeviceConnected(token)
+                runOnUiThread {
+                    if (!serverConnected) {
+                        SecurePrefs.clearToken(this)
+                        codeInput.text.clear()
+                    }
+                    refreshLocalUi()
+                }
+            } catch (error: Exception) {
+                android.util.Log.w("ClientRadar", "Could not refresh server connection state", error)
+            } finally {
+                remoteCheckRunning.set(false)
+            }
+        }
+    }
+
+    private fun confirmDisconnect() {
+        AlertDialog.Builder(this)
+            .setTitle("Disconnect this phone?")
+            .setMessage("This will disconnect ClientRadar Companion from your workspace. You can pair it again later.")
+            .setNegativeButton("Cancel", null)
+            .setPositiveButton("Disconnect") { _, _ -> disconnectDevice() }
+            .show()
+    }
+
+    private fun disconnectDevice() {
+        val token = try { SecurePrefs.token(this) } catch (_: Exception) { "" }
+        if (token.isBlank()) {
+            SecurePrefs.clearToken(this)
+            refreshLocalUi()
+            return
+        }
+
+        disconnectButton.isEnabled = false
+        status.text = "Disconnecting…"
+        executor.execute {
+            try {
+                ApiClient.disconnectDevice(token)
+                SecurePrefs.clearToken(this)
+                runOnUiThread {
+                    disconnectButton.isEnabled = true
+                    codeInput.text.clear()
+                    refreshLocalUi()
+                    Toast.makeText(this, "Phone disconnected.", Toast.LENGTH_SHORT).show()
+                }
+            } catch (error: Exception) {
+                runOnUiThread {
+                    disconnectButton.isEnabled = true
+                    refreshLocalUi()
+                    status.text = "Could not disconnect: ${error.message ?: "Please try again."}"
+                }
             }
         }
     }
 
     private fun connectDevice() {
-        // Ignore whitespace and line breaks added by wrapping or pasting.
+        val existingToken = try { SecurePrefs.token(this) } catch (_: Exception) { "" }
+        if (existingToken.isNotBlank()) {
+            refreshLocalUi()
+            return
+        }
+
         val code = codeInput.text.toString().replace(Regex("\\s+"), "")
         if (!code.matches(Regex("(?i)^[a-z0-9_-]{8,128}$"))) {
             Toast.makeText(this, "Enter the pairing code shown in ClientRadar.", Toast.LENGTH_LONG).show()
@@ -304,25 +373,20 @@ class MainActivity : Activity() {
                 runOnUiThread {
                     codeInput.text.clear()
                     connectButton.isEnabled = true
-                    refreshStatus()
+                    refreshLocalUi()
                     Toast.makeText(this, "ClientRadar connected.", Toast.LENGTH_LONG).show()
                 }
             } catch (error: Exception) {
                 runOnUiThread {
                     connectButton.isEnabled = true
-                    val details = error.message.orEmpty()
-                    status.text = if (details.contains("DOCTYPE", ignoreCase = true) ||
-                        details.contains("<html", ignoreCase = true)) {
-                        "Connection failed: ClientRadar returned a web page instead of the pairing API response. This points to a server/API response issue, not necessarily an invalid code. Check your internet connection and try again."
-                    } else {
-                        "Connection failed: ${details.ifBlank { "Please try again." }.take(300)}"
-                    }
+                    status.text = "Connection failed: ${error.message ?: "Please try again."}".take(320)
                 }
             }
         }
     }
 
     override fun onDestroy() {
+        handler.removeCallbacks(statusPoll)
         executor.shutdown()
         super.onDestroy()
     }
