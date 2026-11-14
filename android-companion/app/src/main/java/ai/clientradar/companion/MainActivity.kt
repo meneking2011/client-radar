@@ -63,9 +63,88 @@ class MainActivity : Activity() {
         window.navigationBarColor = navy
         try {
             render()
+            handleIncomingShare(intent)
         } catch (error: Throwable) {
             showStartupError(error)
         }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleIncomingShare(intent)
+    }
+
+    private fun handleIncomingShare(intent: Intent?) {
+        if (intent?.action != Intent.ACTION_SEND || intent.type != "text/plain") return
+        val sharedText = intent.getCharSequenceExtra(Intent.EXTRA_TEXT)?.toString()?.trim().orEmpty()
+        if (sharedText.isBlank()) return
+        setIntent(Intent(this, MainActivity::class.java))
+
+        val token = try { SecurePrefs.token(this) } catch (_: Exception) { "" }
+        if (token.isBlank()) {
+            AlertDialog.Builder(this)
+                .setTitle("Connect ClientRadar first")
+                .setMessage("Pair this phone with your ClientRadar workspace, then share the page text again.")
+                .setPositiveButton("OK", null)
+                .show()
+            return
+        }
+
+        if (::status.isInitialized) status.text = "Checking the shared content…"
+        executor.execute {
+            try {
+                val response = ApiClient.submitSharedContent(token, sharedText)
+                runOnUiThread {
+                    refreshLocalUi()
+                    if (response.optBoolean("qualified", false)) {
+                        showSharedRequestDraft(
+                            response.optString("title", "New digital-service request"),
+                            response.optString("reason", "The post contains an explicit request."),
+                            response.optString("message", "")
+                        )
+                    } else {
+                        AlertDialog.Builder(this)
+                            .setTitle("No active request detected")
+                            .setMessage(response.optString("reason", "This content does not contain a clear request for a provider."))
+                            .setPositiveButton("OK", null)
+                            .show()
+                    }
+                }
+            } catch (error: Exception) {
+                runOnUiThread {
+                    refreshLocalUi()
+                    AlertDialog.Builder(this)
+                        .setTitle("Could not analyse this content")
+                        .setMessage(error.message ?: "Please try sharing the page again.")
+                        .setPositiveButton("OK", null)
+                        .show()
+                }
+            }
+        }
+    }
+
+    private fun showSharedRequestDraft(title: String, reason: String, message: String) {
+        val draftInput = EditText(this).apply {
+            setText(message)
+            minLines = 5
+            maxLines = 12
+            textSize = 14f
+            setTextColor(white)
+            setPadding(dp(12), dp(10), dp(12), dp(10))
+            background = cardBackground(Color.rgb(29, 44, 63))
+        }
+        AlertDialog.Builder(this)
+            .setTitle("ClientRadar found a request")
+            .setMessage("$title\\n$reason\\n\\nReview the message before using it.")
+            .setView(draftInput)
+            .setPositiveButton("Copy message") { _, _ ->
+                val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                clipboard.setPrimaryClip(android.content.ClipData.newPlainText("ClientRadar message", draftInput.text.toString()))
+                Toast.makeText(this, "Message copied. Review it before sending.", Toast.LENGTH_LONG).show()
+            }
+            .setNegativeButton("Close", null)
+            .show()
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
