@@ -8,6 +8,13 @@ import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
+import android.os.PowerManager
+import android.Manifest
+import android.content.pm.PackageManager
+import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
@@ -41,6 +48,7 @@ class MainActivity : Activity() {
     private lateinit var rootLayout: LinearLayout
 
     private var connected = false
+    private val leadChannelId = "clientradar_shared_leads"
     private var restoredPairingCode: String? = null
 
     private val navy = Color.rgb(9, 17, 31)
@@ -62,6 +70,7 @@ class MainActivity : Activity() {
         window.statusBarColor = navy
         window.navigationBarColor = navy
         try {
+            createLeadAlertChannel()
             render()
             handleIncomingShare(intent)
         } catch (error: Throwable) {
@@ -93,11 +102,15 @@ class MainActivity : Activity() {
 
         if (::status.isInitialized) status.text = "Checking the shared content…"
         executor.execute {
+            val wakeLock = (getSystemService(Context.POWER_SERVICE) as PowerManager)
+                .newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "ClientRadar:SharedContentAnalysis")
             try {
+                wakeLock.acquire(90_000L)
                 val response = ApiClient.submitSharedContent(token, sharedText)
                 runOnUiThread {
                     refreshLocalUi()
                     if (response.optBoolean("qualified", false)) {
+                        showSharedLeadNotification(response.optString("title", "New digital-service request"))
                         showSharedRequestDraft(
                             response.optString("title", "New digital-service request"),
                             response.optString("reason", "The post contains an explicit request."),
@@ -120,8 +133,39 @@ class MainActivity : Activity() {
                         .setPositiveButton("OK", null)
                         .show()
                 }
+            } finally {
+                if (wakeLock.isHeld) wakeLock.release()
             }
         }
+    }
+
+    private fun createLeadAlertChannel() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = NotificationChannel(
+                leadChannelId,
+                "ClientRadar Lead Alerts",
+                NotificationManager.IMPORTANCE_HIGH
+            ).apply {
+                description = "Alerts when shared content is qualified as a new client request"
+                enableVibration(true)
+            }
+            (getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager)
+                .createNotificationChannel(channel)
+        }
+    }
+
+    private fun showSharedLeadNotification(title: String) {
+        if (Build.VERSION.SDK_INT >= 33 &&
+            checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) return
+        val notification = Notification.Builder(this, leadChannelId)
+            .setSmallIcon(android.R.drawable.ic_dialog_info)
+            .setContentTitle("ClientRadar found a new request")
+            .setContentText(title)
+            .setAutoCancel(true)
+            .setCategory(Notification.CATEGORY_RECOMMENDATION)
+            .build()
+        (getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager)
+            .notify((System.currentTimeMillis() % Int.MAX_VALUE).toInt(), notification)
     }
 
     private fun showSharedRequestDraft(title: String, reason: String, message: String) {
@@ -306,6 +350,13 @@ class MainActivity : Activity() {
         add(accessCard, captureDetails, 8)
         alertStatus = text("", 13f, white, true)
         add(accessCard, alertStatus, 8)
+        add(accessCard, makeButton("Enable ClientRadar lead alerts", false) {
+            if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 7201)
+            } else {
+                startActivity(Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, packageName))
+            }
+        }, 8)
         add(accessCard, makeButton("Open ClientRadar alert settings", false) {
             startActivity(Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, packageName))
         }, 8)
