@@ -87,6 +87,19 @@ object ApiClient {
         }
     }
 
+    fun submitSharedContent(token: String, text: String): JSONObject {
+        val url = Regex("https?://[^\\s]+", RegexOption.IGNORE_CASE)
+            .find(text)?.value?.trimEnd(')', ']', '}', '.', ',')
+            .orEmpty()
+        return post(
+            "/api/companion/share",
+            JSONObject()
+                .put("deviceToken", token)
+                .put("text", text)
+                .put("sourceUrl", url)
+        )
+    }
+
     fun sendNotification(token: String, packageName: String, title: String, text: String): JSONObject {
         return post(
             "/api/companion/ingest",
