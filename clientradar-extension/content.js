@@ -1,52 +1,36 @@
 /*
- * ClientRadar Capture — user-initiated page selection only.
- * No MutationObserver, polling, automatic refresh, navigation, or Facebook interaction.
+ * ClientRadar authorised discovery content agent.
+ * Runs only during an explicitly started, time-limited session.
  */
 (() => {
-  if (window.__clientRadarCaptureInstalled) return;
-  window.__clientRadarCaptureInstalled = true;
-
-  const cleanText = (value) => (value || "").replace(/\s+/g, " ").trim().slice(0, 12000);
-
-  function captureSelection() {
-    const selection = window.getSelection();
-    const postText = cleanText(selection ? selection.toString() : "");
-    if (!postText) {
-      return { ok: false, error: "Select the post text first, then open ClientRadar Capture." };
+  if (window.__clientRadarAutoDiscoveryInstalled) return;
+  window.__clientRadarAutoDiscoveryInstalled = true;
+  const seenOnPage = new Set();
+  const clean = s => (s || "").replace(/\s+/g, " ").trim().slice(0, 12000);
+  function permalinkFor(article) {
+    for (const a of Array.from(article.querySelectorAll('a[href]'))) {
+      try {
+        const u = new URL(a.href, location.href);
+        if (!/(^|\.)facebook\.com$/i.test(u.hostname)) continue;
+        if (/\/(posts|permalink|photo|videos|reel)\//i.test(u.pathname) || /story_fbid=|permalink.php/i.test(u.search)) return u.href;
+      } catch (_) {}
     }
-
-    // Use a permalink only if the selected text is inside a recognizable post container.
-    let node = selection && selection.anchorNode;
-    let element = node && (node.nodeType === Node.ELEMENT_NODE ? node : node.parentElement);
-    const post = element && element.closest('[role="article"]');
-    let postUrl = "";
-    if (post) {
-      const links = Array.from(post.querySelectorAll('a[href]'));
-      const candidate = links.find((a) => /\/(posts|permalink|photo|videos)\//i.test(a.getAttribute("href") || ""));
-      if (candidate) {
-        try {
-          const url = new URL(candidate.href, location.href);
-          if (url.hostname === "www.facebook.com" || url.hostname === "m.facebook.com") {
-            postUrl = url.href;
-          }
-        } catch (_) { /* Keep the search URL as source fallback. */ }
-      }
-    }
-
-    return {
-      ok: true,
-      postText,
-      postUrl: postUrl || location.href,
-      sourceUrl: location.href,
-      capturedAt: new Date().toISOString(),
-      keyword: new URL(location.href).searchParams.get("q") || ""
-    };
+    return "";
   }
-
-  chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
-    if (message && message.type === "CLIENTRADAR_CAPTURE_SELECTED") {
-      sendResponse(captureSelection());
-    }
-    return true;
-  });
+  async function scan() {
+    try {
+      const s = await chrome.runtime.sendMessage({type:"CLIENTRADAR_GET_SESSION"});
+      if (!s?.active || s.phase!=="running" || !navigator.onLine) return;
+      for (const article of Array.from(document.querySelectorAll('[role="article"]'))) {
+        const postText=clean(article.innerText||article.textContent||"");
+        const postUrl=permalinkFor(article);
+        if (!postUrl || postText.length<25 || seenOnPage.has(postUrl)) continue;
+        seenOnPage.add(postUrl);
+        chrome.runtime.sendMessage({type:"CLIENTRADAR_AUTO_POST_FOUND",postText,postUrl,sourceUrl:location.href}).catch(()=>{});
+      }
+    } catch (_) {}
+  }
+  scan();
+  setInterval(scan,30000);
+  new MutationObserver(scan).observe(document.documentElement,{childList:true,subtree:true});
 })();
