@@ -5,6 +5,7 @@
  * an online connection, and the single selected Facebook search tab.
  */
 const DEFAULT_SERVER="https://clientradar-fxrsau.v2.appdeploy.ai";
+function isFacebookSearchUrl(value){try{const u=new URL(value);const host=u.hostname.toLowerCase();return u.protocol==="https:"&&(host==="facebook.com"||host.endsWith(".facebook.com"))&&/^\/search(?:\/|$)/i.test(u.pathname);}catch(_){return false;}}
 const MAX_ACTIVE_MS=3*60*60*1000, BREAK_MS=90*60*1000, TICK="clientradar-session-tick";
 async function getState(){return (await chrome.storage.local.get("session")).session||{active:false,phase:"stopped",activeMs:0,lastTickAt:0};}
 async function setState(s){await chrome.storage.local.set({session:s});}
@@ -21,7 +22,7 @@ async function tick(){
  s.lastTickAt=now;
  if(s.blockActiveMs>=MAX_ACTIVE_MS){s.active=false;s.phase="break";s.breakUntil=now+BREAK_MS;await setState(s);return;}
  if(now>=(s.nextRefreshAt||0)){
-  try{const tab=await chrome.tabs.get(s.tabId);if(!tab||!/^https:\/\/(www\.|m\.)?facebook\.com\/search\//i.test(tab.url||""))return stop("The selected Facebook search tab is unavailable.");await chrome.tabs.reload(s.tabId);}
+  try{const tab=await chrome.tabs.get(s.tabId);if(!tab||!isFacebookSearchUrl(tab.url||""))return stop("The selected Facebook search tab is unavailable.");await chrome.tabs.reload(s.tabId);}
   catch(_){return stop("The selected Facebook search tab is unavailable.");}
   s.nextRefreshAt=now+(s.refreshMinutes||5)*60000;
  }
