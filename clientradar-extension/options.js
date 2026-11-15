@@ -1,16 +1,1 @@
-const serverInput = document.getElementById("serverUrl");
-const tokenInput = document.getElementById("deviceToken");
-const status = document.getElementById("status");
-(async () => {
-  const saved = await chrome.storage.local.get(["serverUrl", "deviceToken"]);
-  serverInput.value = saved.serverUrl || "https://clientradar-fxrsau.v2.appdeploy.ai";
-  tokenInput.value = saved.deviceToken || "";
-})();
-document.getElementById("save").addEventListener("click", async () => {
-  const serverUrl = serverInput.value.trim().replace(/\/$/, "");
-  const deviceToken = tokenInput.value.trim();
-  if (!/^https:\/\//i.test(serverUrl)) { status.textContent = "Enter a valid HTTPS server URL."; return; }
-  if (!deviceToken) { status.textContent = "Enter the paired companion token."; return; }
-  await chrome.storage.local.set({ serverUrl, deviceToken });
-  status.textContent = "Settings saved.";
-});
+const $=id=>document.getElementById(id);(async()=>{const s=await chrome.storage.local.get(["serverUrl","deviceToken","authorizationEndsAt","refreshMinutes"]);$("serverUrl").value=s.serverUrl||"https://clientradar-fxrsau.v2.appdeploy.ai";$("deviceToken").value=s.deviceToken||"";$("refreshMinutes").value=s.refreshMinutes||5;if(s.authorizationEndsAt){const d=new Date(s.authorizationEndsAt);$("expiry").value=new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString().slice(0,16);}})();$("save").onclick=async()=>{const serverUrl=$("serverUrl").value.trim().replace(/\/$/,""),deviceToken=$("deviceToken").value.trim(),refreshMinutes=Number($("refreshMinutes").value),authorizationEndsAt=new Date($("expiry").value).getTime();if(!/^https:\/\//i.test(serverUrl))return $("status").textContent="Enter a valid HTTPS server URL.";if(!deviceToken)return $("status").textContent="Enter the paired companion token.";if(!Number.isInteger(refreshMinutes)||refreshMinutes<1||refreshMinutes>30)return $("status").textContent="Refresh interval must be 1–30 minutes.";if(!Number.isFinite(authorizationEndsAt)||authorizationEndsAt<=Date.now())return $("status").textContent="Enter a future authorisation expiry.";await chrome.storage.local.set({serverUrl,deviceToken,refreshMinutes,authorizationEndsAt});$("status").textContent="Settings saved locally.";};
