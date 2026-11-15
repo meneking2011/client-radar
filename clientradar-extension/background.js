@@ -5,7 +5,7 @@
  * an online connection, and the single selected Facebook search tab.
  */
 const DEFAULT_SERVER="https://clientradar-fxrsau.v2.appdeploy.ai";
-function isFacebookSearchUrl(value){try{const u=new URL(String(value||"").trim());const host=u.hostname.toLowerCase().replace(/^www\\./,"");return u.protocol==="https:"&&(host==="facebook.com"||host.endsWith(".facebook.com"))&&(/^\\/search(?:\\/|$)/i.test(u.pathname)||/^\\/search(?:\\/|$)/i.test(decodeURIComponent(u.pathname)));}catch(_){return false;}}
+function isFacebookSearchUrl(value){try{const u=new URL(String(value||"").trim());const host=u.hostname.toLowerCase().replace(/^www\./,"");const path=decodeURIComponent(u.pathname);return u.protocol==="https:"&&(host==="facebook.com"||host.endsWith(".facebook.com"))&&/^\/search(?:\/|$)/i.test(path);}catch(_){return false;}}
 const MAX_ACTIVE_MS=3*60*60*1000, BREAK_MS=90*60*1000, TICK="clientradar-session-tick";
 async function getState(){return (await chrome.storage.local.get("session")).session||{active:false,phase:"stopped",activeMs:0,lastTickAt:0};}
 async function setState(s){await chrome.storage.local.set({session:s});}
