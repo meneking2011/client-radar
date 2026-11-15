@@ -17,14 +17,14 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   (async () => {
     const settings = await chrome.storage.local.get(["deviceToken", "serverUrl"]);
     const deviceToken = (settings.deviceToken || "").trim();
-    const serverUrl = (settings.serverUrl || DEFAULT_SERVER).replace(/\\/$/, "");
+    const serverUrl = (settings.serverUrl || DEFAULT_SERVER).replace(/\/$/, "");
     if (!deviceToken) throw new Error("Add your paired companion token in extension settings.");
     if (!/^https:\/\//i.test(serverUrl)) throw new Error("Server URL must use HTTPS.");
 
     const text = String(message.postText || "").trim().slice(0, 12000);
     const sourceUrl = String(message.sourceUrl || "");
     if (!text) throw new Error("No selected post text was provided.");
-    if (!/^https:\/\/(www\\.|m\\.)?facebook\\.com\//i.test(sourceUrl)) {
+    if (!/^https:\/\/(www\.|m\.)?facebook\.com\//i.test(sourceUrl)) {
       throw new Error("Capture is limited to Facebook search pages.");
     }
 
