@@ -7,7 +7,7 @@ const status = document.getElementById("status");
   tokenInput.value = saved.deviceToken || "";
 })();
 document.getElementById("save").addEventListener("click", async () => {
-  const serverUrl = serverInput.value.trim().replace(/\\/$/, "");
+  const serverUrl = serverInput.value.trim().replace(/\/$/, "");
   const deviceToken = tokenInput.value.trim();
   if (!/^https:\/\//i.test(serverUrl)) { status.textContent = "Enter a valid HTTPS server URL."; return; }
   if (!deviceToken) { status.textContent = "Enter the paired companion token."; return; }
