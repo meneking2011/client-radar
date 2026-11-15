@@ -6,7 +6,7 @@
   if (window.__clientRadarCaptureInstalled) return;
   window.__clientRadarCaptureInstalled = true;
 
-  const cleanText = (value) => (value || "").replace(/\\s+/g, " ").trim().slice(0, 12000);
+  const cleanText = (value) => (value || "").replace(/\s+/g, " ").trim().slice(0, 12000);
 
   function captureSelection() {
     const selection = window.getSelection();
@@ -15,14 +15,14 @@
       return { ok: false, error: "Select the post text first, then open ClientRadar Capture." };
     }
 
-    // Use a permalink only if the user's selected text is inside a recognizable post container.
+    // Use a permalink only if the selected text is inside a recognizable post container.
     let node = selection && selection.anchorNode;
     let element = node && (node.nodeType === Node.ELEMENT_NODE ? node : node.parentElement);
     const post = element && element.closest('[role="article"]');
     let postUrl = "";
     if (post) {
       const links = Array.from(post.querySelectorAll('a[href]'));
-      const candidate = links.find((a) => /\\/(posts|permalink|photo|videos)\\//i.test(a.getAttribute("href") || ""));
+      const candidate = links.find((a) => /\/(posts|permalink|photo|videos)\//i.test(a.getAttribute("href") || ""));
       if (candidate) {
         try {
           const url = new URL(candidate.href, location.href);
