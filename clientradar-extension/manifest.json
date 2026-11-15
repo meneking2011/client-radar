@@ -1,0 +1,28 @@
+{
+  "manifest_version": 3,
+  "name": "ClientRadar Capture",
+  "version": "1.0.0",
+  "description": "User-initiated capture of selected public post text for ClientRadar review.",
+  "permissions": ["storage", "activeTab"],
+  "host_permissions": [
+    "https://www.facebook.com/*",
+    "https://m.facebook.com/*",
+    "https://clientradar-fxrsau.v2.appdeploy.ai/*"
+  ],
+  "action": {
+    "default_title": "Capture selected post",
+    "default_popup": "popup.html"
+  },
+  "options_page": "options.html",
+  "content_scripts": [{
+    "matches": [
+      "https://www.facebook.com/search/*",
+      "https://m.facebook.com/search/*"
+    ],
+    "js": ["content.js"],
+    "run_at": "document_idle"
+  }],
+  "background": {
+    "service_worker": "background.js"
+  }
+}
