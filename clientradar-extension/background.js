@@ -45,8 +45,8 @@ chrome.runtime.onMessage.addListener((m,_sender,reply)=>{
   (async()=>{const end=await expiry();if(!end||Date.now()>=end)throw Error("Set a valid authorisation expiry in Settings before starting.");
    if(!navigator.onLine)throw Error("Connect to the internet before starting.");
    const tab=await chrome.tabs.get(m.tabId);if(!tab||!/^https:\/\/(www\.|m\.)?facebook\.com\/search\//i.test(tab.url||""))throw Error("Open the authorised Facebook search-results page first.");
-   const cfg=await chrome.storage.local.get("deviceToken");if(!cfg.deviceToken)throw Error("Add the paired companion token in Settings first.");
-   const now=Date.now();await setState({active:true,phase:"running",startedAt:now,lastTickAt:now,activeMs:0,blockActiveMs:0,tabId:tab.id,refreshMinutes:Math.max(1,Math.min(30,Number(m.refreshMinutes)||5)),nextRefreshAt:now+10000,expiresAt:end});
+   const cfg=await chrome.storage.local.get(["deviceToken","refreshMinutes"]);if(!cfg.deviceToken)throw Error("Add the paired companion token in Settings first.");
+   const now=Date.now();await setState({active:true,phase:"running",startedAt:now,lastTickAt:now,activeMs:0,blockActiveMs:0,tabId:tab.id,refreshMinutes:Math.max(1,Math.min(30,Number(cfg.refreshMinutes)||5)),nextRefreshAt:now+10000,expiresAt:end});
    await chrome.alarms.create(TICK,{periodInMinutes:1});return {ok:true};
   })().then(reply).catch(e=>reply({ok:false,error:e.message}));return true;
  }
