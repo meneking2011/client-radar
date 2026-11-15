@@ -5,7 +5,7 @@
  * an online connection, and the single selected Facebook search tab.
  */
 const DEFAULT_SERVER="https://clientradar-fxrsau.v2.appdeploy.ai";
-function isFacebookSearchUrl(value){try{const u=new URL(value);const host=u.hostname.toLowerCase();return u.protocol==="https:"&&(host==="facebook.com"||host.endsWith(".facebook.com"))&&/^\/search(?:\/|$)/i.test(u.pathname);}catch(_){return false;}}
+function isFacebookSearchUrl(value){try{const u=new URL(String(value||"").trim());const host=u.hostname.toLowerCase().replace(/^www\\./,"");return u.protocol==="https:"&&(host==="facebook.com"||host.endsWith(".facebook.com"))&&(/^\\/search(?:\\/|$)/i.test(u.pathname)||/^\\/search(?:\\/|$)/i.test(decodeURIComponent(u.pathname)));}catch(_){return false;}}
 const MAX_ACTIVE_MS=3*60*60*1000, BREAK_MS=90*60*1000, TICK="clientradar-session-tick";
 async function getState(){return (await chrome.storage.local.get("session")).session||{active:false,phase:"stopped",activeMs:0,lastTickAt:0};}
 async function setState(s){await chrome.storage.local.set({session:s});}
@@ -45,7 +45,7 @@ chrome.runtime.onMessage.addListener((m,_sender,reply)=>{
  if(m?.type==="CLIENTRADAR_START_SESSION"){
   (async()=>{const end=await expiry();if(!end||Date.now()>=end)throw Error("Set a valid authorisation expiry in Settings before starting.");
    if(!navigator.onLine)throw Error("Connect to the internet before starting.");
-   const tab=await chrome.tabs.get(m.tabId);if(!tab||!isFacebookSearchUrl(tab.url||""))throw Error("Open the authorised Facebook search-results page first.");
+   const tab=await chrome.tabs.get(m.tabId);const candidateUrl=String(m.tabUrl||tab?.url||"").trim();if(!tab||!isFacebookSearchUrl(candidateUrl))throw Error("ClientRadar did not recognise the active tab as a Facebook search page. Detected URL: "+(candidateUrl||"(browser did not provide the tab URL)")+". Keep the authorised search page active and try again.");
    const cfg=await chrome.storage.local.get(["deviceToken","refreshMinutes"]);if(!cfg.deviceToken)throw Error("Add the paired companion token in Settings first.");
    const now=Date.now();await setState({active:true,phase:"running",startedAt:now,lastTickAt:now,activeMs:0,blockActiveMs:0,tabId:tab.id,refreshMinutes:Math.max(1,Math.min(30,Number(cfg.refreshMinutes)||5)),nextRefreshAt:now+10000,expiresAt:end});
    await chrome.alarms.create(TICK,{periodInMinutes:1});return {ok:true};
